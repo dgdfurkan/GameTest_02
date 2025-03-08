@@ -1,0 +1,59 @@
+name: Test GunduzTech Filtering
+
+on:
+  workflow_dispatch:  # Manuel çalıştırmak için
+
+jobs:
+  get-repos:
+    runs-on: ubuntu-latest
+    outputs:
+      final_repos: ${{ steps.filter-repos.outputs.final_repos }}
+    steps:
+      - name: Configure Git
+        run: |
+          git config --global user.email "frkngndz60@gmail.com"
+          git config --global user.name "dgdfurkan"
+      
+      - name: Fetch all repositories
+        id: filter-repos
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: |
+          echo "Fetching repository list..."
+          REPO_LIST=$(curl -s -H "Authorization: token ${GH_PAT}" \
+          "https://api.github.com/user/repos?per_page=100&affiliation=owner" | \
+          jq -r '.[] | select(.default_branch == "main") | .name')
+
+          FINAL_REPOS=()
+          for repo in $REPO_LIST; do
+            echo "Checking $repo for GunduzTech directory inside first two levels..."
+            
+            # İlk seviyedeki klasörleri al
+            ROOT_DIRS=$(curl -s -H "Authorization: token ${GH_PAT}" \
+            "https://api.github.com/repos/dgdfurkan/$repo/contents" | jq -r '.[].name')
+
+            for dir in $ROOT_DIRS; do
+              # İlk seviyedeki klasörün içine gir ve alt klasörlerini al
+              SUB_DIRS=$(curl -s -H "Authorization: token ${GH_PAT}" \
+              "https://api.github.com/repos/dgdfurkan/$repo/contents/$dir" | jq -r '.[].name' 2>/dev/null)
+
+              # Eğer GunduzTech bulunursa projeyi listeye ekle
+              if echo "$SUB_DIRS" | grep -q "GunduzTech"; then
+                FINAL_REPOS+=("$repo")
+                echo "$repo    +++++++    +++  =    USES $dir/.../GunduzTech."
+                break
+              fi
+            done
+          done
+          
+          echo "FINAL_REPOS=${FINAL_REPOS[*]}" >> $GITHUB_ENV
+          echo "final_repos=$(IFS=, ; echo "${FINAL_REPOS[*]}")" >> $GITHUB_OUTPUT
+
+  test-filter:
+    needs: get-repos
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print Filtered Repositories
+        run: |
+          echo "Filtered repositories that contain GunduzTech in first two levels:"
+          echo "${{ needs.get-repos.outputs.final_repos }}"
