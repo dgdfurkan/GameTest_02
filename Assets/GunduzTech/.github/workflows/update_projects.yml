@@ -1,0 +1,101 @@
+name: Update Game Projects
+on:
+  push:
+    branches:
+      - main  # GunduzTech'e her push yapıldığında çalışacak
+jobs:
+  get-repos:
+    runs-on: ubuntu-latest
+    outputs:
+      final_repos: ${{ steps.filter-repos.outputs.final_repos }}
+    steps:
+      - name: Configure Git
+        run: |
+          git config --global user.email "frkngndz60@gmail.com"
+          git config --global user.name "dgdfurkan"
+      
+      - name: Fetch all repositories
+        id: filter-repos
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: |
+          echo "Fetching repository list..."
+          REPO_LIST=$(curl -s -H "Authorization: token ${GH_PAT}" "https://api.github.com/user/repos?per_page=100&affiliation=owner" | jq -r '.[] | select(.default_branch == "main") | .name')
+          
+          echo "============ SEARCH RESULTS ============"
+          echo "Searching for Assets/GunduzTech directory..."
+          echo "========================================"
+          
+          FINAL_REPOS=()
+          for repo in $REPO_LIST; do
+            echo "Checking repository: $repo"
+            
+            # GitHub API üzerinden direkt olarak `Assets/GunduzTech` kontrolü
+            DIR_CHECK=$(curl -s -H "Authorization: token ${GH_PAT}" "https://api.github.com/repos/dgdfurkan/$repo/contents/Assets/GunduzTech")
+            if [[ "$DIR_CHECK" != *"Not Found"* && "$DIR_CHECK" != *"404"* ]]; then
+              FINAL_REPOS+=("$repo")
+              echo "✅ FOUND in $repo: Assets/GunduzTech directory exists"
+            else
+              echo "❌ NOT FOUND in $repo: Assets/GunduzTech directory does not exist"
+            fi
+          done
+          
+          echo "========================================"
+          echo "Total repositories with Assets/GunduzTech: ${#FINAL_REPOS[@]}"
+          echo "========================================"
+          
+          echo "FINAL_REPOS=${FINAL_REPOS[*]}" >> $GITHUB_ENV
+          echo "final_repos=$(IFS=, ; echo "${FINAL_REPOS[*]}")" >> $GITHUB_OUTPUT
+  update-repos:
+    needs: get-repos
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure Git
+        run: |
+          git config --global user.email "frkngndz60@gmail.com"
+          git config --global user.name "dgdfurkan"
+      
+      - name: Update All GunduzTech-based projects (Inside Assets)
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: |
+          IFS=',' read -r -a REPO_ARRAY <<< "${{ needs.get-repos.outputs.final_repos }}"
+          
+          echo "============ UPDATE RESULTS ============"
+          echo "Updating GunduzTech in ${#REPO_ARRAY[@]} repositories..."
+          echo "========================================"
+          
+          for repo in "${REPO_ARRAY[@]}"; do
+            if [[ -n "$repo" && "$repo" != " " ]]; then
+              echo "📂 Processing repository: $repo"
+              git clone https://${{ secrets.GH_PAT }}@github.com/dgdfurkan/$repo.git
+              cd $repo
+              
+              if [ -d "Assets/GunduzTech" ]; then
+                git checkout main
+                git pull origin main
+                
+                if ! git ls-tree -d HEAD Assets/GunduzTech >/dev/null 2>&1; then
+                  echo "  ➕ Adding GunduzTech as subtree..."
+                  git subtree add --prefix=Assets/GunduzTech https://${{ secrets.GH_PAT }}@github.com/dgdfurkan/GunduzTech.git main --squash
+                else
+                  echo "  🔄 Updating existing GunduzTech subtree..."
+                  git subtree pull --prefix=Assets/GunduzTech https://${{ secrets.GH_PAT }}@github.com/dgdfurkan/GunduzTech.git main --squash
+                fi
+                
+                git add .
+                git commit -m "Auto-update GunduzTech inside Assets" || echo "  ℹ️ No changes to commit"
+                git push origin main
+                echo "  ✅ Successfully updated GunduzTech in $repo"
+              else
+                echo "  ❌ Error: Assets/GunduzTech not found in cloned repository."
+              fi
+              
+              cd ..
+              rm -rf $repo
+            fi
+          done
+          
+          echo "========================================"
+          echo "Update process completed."
+          echo "========================================"
