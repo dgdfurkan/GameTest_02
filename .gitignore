@@ -1,0 +1,36 @@
+# Genel Ignore (Tüm Assets içeriğini gizle)
+Assets/*
+
+# Görünmesini istediğimiz klasörler (Bunlar hariç tutulacak)
+!Assets/Scripts/
+!Assets/Art/
+!Assets/Resources/
+!Assets/Scenes/
+
+# Unity Tarafından Üretilen ve Gereksiz Dosyalar
+Library/
+Temp/
+Logs/
+UserSettings/
+
+# Unity Package Cache
+Packages/
+ProjectSettings/
+MemoryCaptures/
+Build/
+Builds/
+
+# IDE ve OS Dosyaları (Mac, Windows, Rider, VS Code)
+.DS_Store
+.idea/
+.vscode/
+*.sln
+*.csproj
+*.unityproj
+*.pidb
+*.suo
+*.user
+*.userprefs
+*.log
+*.vs
+*.swp
