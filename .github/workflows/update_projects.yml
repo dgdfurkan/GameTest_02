@@ -1,7 +1,9 @@
-name: Test GunduzTech Filtering
+name: Update Game Projects
 
 on:
-  workflow_dispatch:  # Manuel çalıştırmak için
+  push:
+    branches:
+      - main  # GunduzTech'e her push yapıldığında çalışacak
 
 jobs:
   get-repos:
@@ -20,40 +22,65 @@ jobs:
           GH_PAT: ${{ secrets.GH_PAT }}
         run: |
           echo "Fetching repository list..."
-          REPO_LIST=$(curl -s -H "Authorization: token ${GH_PAT}" \
-          "https://api.github.com/user/repos?per_page=100&affiliation=owner" | \
-          jq -r '.[] | select(.default_branch == "main") | .name')
+          REPO_LIST=$(curl -s -H "Authorization: token ${GH_PAT}" "https://api.github.com/user/repos?per_page=100&affiliation=owner" | jq -r '.[] | select(.default_branch == "main") | .name')
 
           FINAL_REPOS=()
           for repo in $REPO_LIST; do
-            echo "Checking $repo for GunduzTech directory inside first two levels..."
+            echo "Checking $repo for Assets/GunduzTech directory..."
             
-            # İlk seviyedeki klasörleri al
-            ROOT_DIRS=$(curl -s -H "Authorization: token ${GH_PAT}" \
-            "https://api.github.com/repos/dgdfurkan/$repo/contents" | jq -r '.[].name')
+            # GitHub API üzerinden direkt olarak `Assets/GunduzTech` kontrolü
+            DIR_CHECK=$(curl -s -H "Authorization: token ${GH_PAT}" "https://api.github.com/repos/dgdfurkan/$repo/contents/Assets/GunduzTech")
 
-            for dir in $ROOT_DIRS; do
-              # İlk seviyedeki klasörün içine gir ve alt klasörlerini al
-              SUB_DIRS=$(curl -s -H "Authorization: token ${GH_PAT}" \
-              "https://api.github.com/repos/dgdfurkan/$repo/contents/$dir" | jq -r '.[].name' 2>/dev/null)
-
-              # Eğer GunduzTech bulunursa projeyi listeye ekle
-              if echo "$SUB_DIRS" | grep -q "GunduzTech"; then
-                FINAL_REPOS+=("$repo")
-                echo "$repo    +++++++    +++  =    USES $dir/.../GunduzTech."
-                break
-              fi
-            done
+            if [[ "$DIR_CHECK" != *"Not Found"* && "$DIR_CHECK" != *"404"* ]]; then
+              FINAL_REPOS+=("$repo")
+              echo "$repo    +++++++    +++  =    USES Assets/GunduzTech."
+            else
+              echo "Skipping $repo, no Assets/GunduzTech found."
+            fi
           done
           
           echo "FINAL_REPOS=${FINAL_REPOS[*]}" >> $GITHUB_ENV
           echo "final_repos=$(IFS=, ; echo "${FINAL_REPOS[*]}")" >> $GITHUB_OUTPUT
 
-  test-filter:
+  update-repos:
     needs: get-repos
     runs-on: ubuntu-latest
     steps:
-      - name: Print Filtered Repositories
+      - name: Configure Git
         run: |
-          echo "Filtered repositories that contain GunduzTech in first two levels:"
-          echo "${{ needs.get-repos.outputs.final_repos }}"
+          git config --global user.email "frkngndz60@gmail.com"
+          git config --global user.name "dgdfurkan"
+      
+      - name: Update All GunduzTech-based projects (Inside Assets)
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: |
+          IFS=',' read -r -a REPO_ARRAY <<< "${{ needs.get-repos.outputs.final_repos }}"
+          
+          for repo in "${REPO_ARRAY[@]}"; do
+            if [[ -n "$repo" && "$repo" != " " ]]; then
+              echo "Updating $repo..."
+              git clone https://${{ secrets.GH_PAT }}@github.com/dgdfurkan/$repo.git
+              cd $repo
+              
+              if [ -d "Assets/GunduzTech" ]; then
+                git checkout main
+                git pull origin main
+                
+                if ! git ls-tree -d HEAD Assets/GunduzTech >/dev/null 2>&1; then
+                  git subtree add --prefix=Assets/GunduzTech https://${{ secrets.GH_PAT }}@github.com/dgdfurkan/GunduzTech.git main --squash
+                else
+                  git subtree pull --prefix=Assets/GunduzTech https://${{ secrets.GH_PAT }}@github.com/dgdfurkan/GunduzTech.git main --squash
+                fi
+                
+                git add .
+                git commit -m "Auto-update GunduzTech inside Assets" || echo "No changes to commit"
+                git push origin main
+              else
+                echo "Skipping $repo, Assets/GunduzTech not found."
+              fi
+              
+              cd ..
+              rm -rf $repo
+            fi
+          done
