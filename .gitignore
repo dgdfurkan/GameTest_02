@@ -1,11 +1,12 @@
-# Önce her şeyi ignore et
-Assets/**
+# Tüm GunduzTech içeriğini ignore et
+Assets/GunduzTech/**
 
-# Ama şu klasörler hariç
+# Ancak aşağıdaki klasörler görünür olsun:
 !Assets/GunduzTech/Assets/Scripts/
-!Assets/GunduzTech/Assets/Art/
-!Assets/GunduzTech/Assets/Resources/
 !Assets/GunduzTech/Assets/Scenes/
+!Assets/GunduzTech/Assets/Resources/
+!Assets/GunduzTech/Assets/Art/
+
 
 # Unity cache ve gereksiz dosyalar
 Library/
