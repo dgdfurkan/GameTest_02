@@ -2,10 +2,10 @@
 Assets/**
 
 # Ama şu klasörler hariç
-!Assets/GunduzTech/Scripts/
-!Assets/GunduzTech/Art/
-!Assets/GunduzTech/Resources/
-!Assets/GunduzTech/Scenes/
+!Assets/GunduzTech/Assets/Scripts/
+!Assets/GunduzTech/Assets/Art/
+!Assets/GunduzTech/Assets/Resources/
+!Assets/GunduzTech/Assets/Scenes/
 
 # Unity cache ve gereksiz dosyalar
 Library/
